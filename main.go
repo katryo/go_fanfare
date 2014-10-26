@@ -8,43 +8,53 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
+	"os/user"
 	"time"
 )
 
 func main() {
-	statusChan := parallel()
+	if len(os.Args) < 2 {
+		fmt.Println("missing required argument:  task stript was not given")
+		return
+	}
+	command := os.Args[1]
+	user, err := user.Current()
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	heavyTaskChan := parallel(command)
 	fightingChan := make(chan string)
 	go func(audioChan chan string) {
-		play("boss.aif", audioChan)
+		bossPass := user.HomeDir + "/Music/go_fanfare/boss.aif"
+		play(bossPass, audioChan)
 	}(fightingChan)
-	fmt.Println(<-statusChan)
+	fmt.Println(<-heavyTaskChan)
 	fightingChan <- "stop"
 	fanfareChan := make(chan string)
 	go func(audioChan chan string) {
-		play("fanfare.aif", audioChan)
+		fanfarePath := user.HomeDir + "/Music/go_fanfare/fanfare.aif"
+		play(fanfarePath, audioChan)
 	}(fanfareChan)
-	time.Sleep(10 * time.Second)
+	time.Sleep(20 * time.Second)
 	fanfareChan <- "stop"
 }
 
-func parallel() <-chan string {
-	statusChan := make(chan string)
+func parallel(command string) <-chan string {
+	taskChan := make(chan string)
+	fmt.Println("Began the task!")
 	go func() {
-		cmd := exec.Command("./heavy_task")
+		cmd := exec.Command(command)
 		hello, err := cmd.Output()
 		if err != nil {
 			fmt.Errorf("%s", err)
 		}
-		statusChan <- string(hello)
+		taskChan <- string(hello)
 	}()
-	return statusChan
+	return taskChan
 }
 
 func play(fileName string, finishedChan chan string) {
-	//if len(os.Args) < 2 {
-	//		fmt.Println("missing required argument:  input file name")
-	//		return
-	//	}
 	fmt.Println("Playing.  Press Ctrl-C to stop.")
 
 	sig := make(chan os.Signal, 1)
